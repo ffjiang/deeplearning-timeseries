@@ -104,18 +104,22 @@ class LSTMCell:
 
 
 
-    # Back propagation through time
+    # Back propagation through time, returns the error and the gradient for this sequence
+    # (should I give this the sequence x1,x2,... so that this method is tied
+    # to the sequence?)
     def BPTT(self, y, numTimePeriods):
-        dE_dh_t = self.h - y
+        E = 0.5 * np.square(self.h - y) # This is the error vector for this sequence
+        dE_dh_t = self.h - y # This is the error gradient for this sequence
         dE_dc_t = 0
 
         dE_dW = 0 
         for i in range(numTimePeriods):
             result = backwardStep(dE_dh_t, dE_dc_t)
-            dE_dW = dE_dW + result[0] # dE_dW_i
+            dE_dW = dE_dW + result[0] # dE_dW_t
             dE_dh_t = result[1]
             dE_dc_t = result[2]
 
+        return (E, dE_dW)
 
 class LSTMNetwork:
 
