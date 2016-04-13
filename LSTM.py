@@ -31,10 +31,7 @@ class LSTMCell:
         W_3 = np.concatenate((self.W_f, self.U_f), axis=1)
         W_4 = np.concateneate((self.W_o, self.U_o), axis=1)
 
-        W_5 = np.concatenate((z_1, z_2), axis=0)
-        W_6 = np.concatenate((z_3, z_4), axis=0)
-
-        W = np.concatenate((z_5, z_6), axis=0)
+        W = np.concatenate((W_1, W_2, W_3, W_4), axis=0)
         
         I = np.concatenate((x, self.h))
 
@@ -88,13 +85,36 @@ class LSTMCell:
         dE_dc_tminus1 = np.dot(dE_dc_t, self.f)
 
 
+        dE_dzcbar_t = np.dot(dE_dcbar_t, (np.ones(self.numCells) - np.square(np.tanh(z[0:self.numCells]))))
+        dE_dzi_t = np.dot(np.dot(dE_di_t, self.i), (np.ones(self.numCells) - self.i))
+        dE_dzf_t = np.dot(np.dot(dE_df_t, self.f), (np.ones(self.numCells) - self.f))
+        dE_dzo_t = np.dot(np.dot(dE_do_t, self.o), (np.ones(self.numCells) - self.o))
+
+        dE_dz_t = np.concatenate(dE_dzcbar_t, dE_dzi_t, dE_dzf_t, dE_dzo_t)
+
+        dE_dI_t = np.dot(np.transpose(W), dE_dz_t)
+
+
+
+        dE_dh_tminus1 = dE_dI_t[self.size:]
+
+        dE_dW_t = np.dot(dE_dz_t, np.transpose(dE_dI_t)) # this one is confusing cos it says X_t instead of I_t, but there is no matrix or vector X
+
+        return (dE_dW_t, dE_dh_tminus1, dE_dc_t)
+
+
 
     # Back propagation through time
     def BPTT(self, y, numTimePeriods):
         dE_dh_t = self.h - y
+        dE_dc_t = 0
+
+        dE_dW = 0 
         for i in range(numTimePeriods):
-            backwardStep(dE_dh_t, dE_dc_t)
-            # right now don't even have sprint football
+            result = backwardStep(dE_dh_t, dE_dc_t)
+            dE_dW = dE_dW + result[0] # dE_dW_i
+            dE_dh_t = result[1]
+            dE_dc_t = result[2]
 
 
 class LSTMNetwork:
