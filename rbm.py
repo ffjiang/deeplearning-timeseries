@@ -1,4 +1,3 @@
-from __future__ import print_function
 import numpy as np
 
 class RBM:
@@ -7,7 +6,7 @@ class RBM:
     self.num_hidden = num_hidden
     self.num_visible = num_visible
     self.learning_rate = learning_rate
-    print("hi")
+
     # Initialize a weight matrix, of dimensions (num_visible x num_hidden), using
     # a Gaussian distribution with mean 0 and standard deviation 0.1.
     self.weights = 0.1 * np.random.randn(self.num_visible, self.num_hidden)    
@@ -29,7 +28,7 @@ class RBM:
     # Insert bias units of 1 into the first column.
     data = np.insert(data, 0, 1, axis = 1)
 
-    for epoch in range(max_epochs):      
+    for epoch in range(max_epochs):     
       # Clamp to the data and sample from the hidden units. 
       # (This is the "positive CD phase", aka the reality phase.)
       pos_hidden_activations = np.dot(data, self.weights)      
@@ -54,7 +53,7 @@ class RBM:
       # Update weights.
       self.weights += self.learning_rate * ((pos_associations - neg_associations) / num_examples)
 
-      error = np.sum((data - neg_visible_probs) ** 2)
+      error = np.sum(np.fabs(data - neg_visible_probs)) / len(data)
       print("Epoch %s: error is %s" % (epoch, error))
 
   def run_visible(self, data):
@@ -80,7 +79,6 @@ class RBM:
     
     # Insert bias units of 1 into the first column of data.
     data = np.insert(data, 0, 1, axis = 1)
-
     # Calculate the activations of the hidden units.
     hidden_activations = np.dot(data, self.weights)
     # Calculate the probabilities of turning the hidden units on.
@@ -182,10 +180,14 @@ class RBM:
     return 1.0 / (1 + np.exp(-x))
 
 if __name__ == '__main__':
+  training_data = np.array([[1,1,1,0,0,0],[1,0,1,0,0,0],[0,0,1,1,1,0],[0,0,1,1,1,0],[0,0,1,1,1,0],[1,1,1,0,0,0],[1,1,1,0,0,0],[1,1,1,0,0,0],[1,1,1,0,0,0],[0,0,1,1,1,0], [0,0,1,1,0,0],[0,0,1,1,1,0]])
+  print len(training_data)
+  print len(training_data[0])
+  user = np.array([[0,1]])
+  ans = np.zeros(shape=[1,6])
   r = RBM(num_visible = 6, num_hidden = 2, learning_rate = .1)
-  training_data = np.array([[1,1,1,0,0,0],[1,0,1,0,0,0],[1,1,1,0,0,0],[0,0,1,1,1,0], [0,0,1,1,0,0],[0,0,1,1,1,0]])
   r.train(training_data, max_epochs = 5000)
-  print(r.weights)
-  user = np.array([[0,0,0,1,1,0]])
-  print(r.run_visible(user))
+  for i in range(100):
+    ans += r.run_hidden(user)
+  print ans / 100
 
