@@ -8,14 +8,8 @@ def main():
     args = sys.argv
     filename = args[1]
 
-    training_data = np.array(readData(filename))
-    min_ex = np.amin(training_data, axis=0)
-    max_ex = np.amax(training_data, axis=0)
+    training_data = readData(filename)
 
-    training_data -= min_ex
-    training_data /= max_ex
-
-    print training_data
     # norm_data = preprocessing.scale(training_data)
 
     print "Length: %d" % len(training_data)
@@ -63,7 +57,15 @@ def readData(filename):
             examples.append(example)
             i += 1
 
-    return examples
+    training_data = np.array(example)
+    min_ex = np.amin(training_data, axis=0)
+    max_ex = np.amax(training_data, axis=0)
+
+    training_data -= min_ex
+    training_data /= max_ex
+
+    return training_data
+
 def normalize(arr):
     sum = 0
     for i in range(len(arr)):
