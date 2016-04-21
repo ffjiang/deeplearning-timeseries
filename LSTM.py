@@ -174,12 +174,10 @@ class LSTMCell:
                 E = result[0]
                 dE_dW = result[1]
 
-                if (E < previousE):
-                    adaptiveLearningRate = adaptiveLearningRate * 1.05
-                    self.W = self.W - adaptiveLearningRate * dE_dW
-                else:
-                    self.W = self.W + adaptiveLearningRate * previousdE_dW
-                    adaptiveLearningRate = adaptiveLearningRate * 0.5
+                # Annealing
+                adaptiveLearningRate = learningRate / (1 + (epoch/10))
+                
+                self.W = self.W - adaptiveLearningRate * dE_dW
 
                 print("Error: " + str(E))
 
@@ -203,7 +201,7 @@ def main():
 
     xSet = np.array([[[1,2,3], [1,3,5], [9, 9, 9]], [[1, 2, 3], [9, 9, 9]]])
     ySet = np.array([[[0.3, 0.5], [0.3,0.5], [0.3,0.5]], [[0.3, 0.5], [0.3,0.5]]])
-    lstm.train(xSet, ySet, 10, 100)
+    lstm.train(xSet, ySet, 1000, 1.0)
      
 
 if __name__ == "__main__": main()
