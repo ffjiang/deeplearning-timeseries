@@ -9,22 +9,25 @@ def main():
     filename = args[1]
 
     training_data = readData(filename)
-
+    print training_data
     # norm_data = preprocessing.scale(training_data)
 
     print "Length: %d" % len(training_data)
     print "Other_Length: %d" % len(training_data[0])
 
-    user = np.array([[0,0,.3,.3,.6,.5,.3,.4]])
-
-    ans = np.zeros(shape=[1,15])
-    d = DBN(n_ins=8, hidden_layers=[15], n_outs=15, learning_rate=.3, max_epochs=5000)
+    user = np.array([[0,.9,.8,0,0,0,0,0]])
+    ans = np.zeros(shape=[1,10])
+    other_ans = np.zeros(shape=[1,8])
+    d = DBN(n_ins=8, hidden_layers=[10], n_outs=10, learning_rate=.3, max_epochs=5000)
     d.train(training_data)
-    num_sims = 20
+    num_sims = 1000
     for j in range(num_sims):
         val = np.array(d.simulate_visible(user))
+        back_val = np.array(d.simulate_hidden(val))
+        other_ans += back_val
         ans += val
     print (ans / num_sims)
+    print (other_ans / num_sims)
 
 def readData(filename):
     lines = []  
@@ -57,13 +60,17 @@ def readData(filename):
             examples.append(example)
             i += 1
 
-    training_data = np.array(example)
+    training_data = np.array(examples)
+
     min_ex = np.amin(training_data, axis=0)
     max_ex = np.amax(training_data, axis=0)
 
+    print len(training_data)
+    print(len(training_data[0]))
     training_data -= min_ex
-    training_data /= max_ex
-
+    training_data *= max_ex
+    print len(training_data)
+    print(len(training_data[0]))
     return training_data
 
 def normalize(arr):
