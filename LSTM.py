@@ -150,8 +150,8 @@ class LSTMCell:
         dE_dW = 0 
         dE_dh_t = 0
         dE_dc_t = 0
-        E = 0
-        for i in range(numTimePeriods - 1):
+        E = 0.0
+        for i in range(numTimePeriods):
             index = numTimePeriods - i
             E = E + 0.5 * np.sum(np.square(self.h[index] - y[index - 1])) # This is the error vector for this sequence
             dE_dh_t = dE_dh_t + self.h[index] - y[index - 1] # This is the error gradient for this sequence
@@ -161,7 +161,7 @@ class LSTMCell:
             dE_dh_t = result[1]
             dE_dc_t = result[2]
 
-        return (E, dE_dW)
+        return (E / (numTimePeriods), dE_dW)
 
     def train(self, xSet, ySet, numEpochs, learningRate):
         adaptiveLearningRate = learningRate
@@ -175,7 +175,7 @@ class LSTMCell:
                 dE_dW = result[1]
 
                 # Annealing
-                adaptiveLearningRate = learningRate / (1 + (epoch/10))
+                adaptiveLearningRate = learningRate / (1 + (epoch/100))
                 
                 self.W = self.W - adaptiveLearningRate * dE_dW
 
@@ -184,8 +184,67 @@ class LSTMCell:
                 previousE = E
                 previousdE_dW = dE_dW
 
+    def forecast(self, xSet):
+        self.forwardPass(xSet)
+        return np.transpose(np.transpose(self.h[1:]))
+
+    def test(self, xSet, ySet):
+        avgError = 0.0
+        for i in range(xSet.shape[0]):
+            self.forwardPass(xSet[i])
+            numTimePeriods = len(xSet[i])
+            E = 0.0
+            for j in range(numTimePeriods):
+                index = numTimePeriods - j
+                E = E + 0.5 * np.sum(np.square(self.h[index] - ySet[i][index - 1])) # This is the error vector for this sequence
+            E = E / numTimePeriods
+            avgError = avgError + E
+        avgError = avgError / xSet.shape[0]
+
+        return avgError
+
             
 
+def readData(filename):
+    lines = []  
+    with open(filename) as f:
+        lines = f.readlines()
+
+    num_attributes = len(lines[0].split(";")) - 1
+    del lines[0]
+
+    i = 0
+    examples = []
+    for line in lines:
+        if i < 3000 and '?' not in line:
+
+            tokens = line.split(';')
+            time_str = tokens[1]
+            hours = float(time_str[:2])
+            minutes = float(time_str[3]) / 60.0
+            time = hours + minutes
+
+            global_active_power = float(tokens[2])
+            global_reactive_power = float(tokens[3])
+            voltage = float(tokens[4])
+            global_intensity = float(tokens[5])
+            sub_metering_1 = float(tokens[6])
+            sub_metering_2 = float(tokens[7])
+            sub_metering_3 = float(tokens[8])
+
+            example = [time, global_active_power, global_reactive_power, voltage, global_intensity, sub_metering_1, sub_metering_2, sub_metering_3]
+            examples.append(example)
+            i += 1
+
+    training_data = np.array(examples)
+    min_ex = np.amin(training_data, axis=0)
+    max_ex = np.amax(training_data, axis=0)
+
+    original_data = np.copy(training_data)
+    training_data -= min_ex
+    training_data /= max_ex
+
+    return (training_data, max_ex, min_ex, original_data)
 
 '''
 class LSTMNetwork:
@@ -197,11 +256,39 @@ class LSTMNetwork:
 '''
 
 def main():
-    lstm = LSTMCell(3, 2)
 
-    xSet = np.array([[[1,2,3], [1,3,5], [9, 9, 9]], [[1, 2, 3], [9, 9, 9]]])
-    ySet = np.array([[[0.3, 0.5], [0.3,0.5], [0.3,0.5]], [[0.3, 0.5], [0.3,0.5]]])
-    lstm.train(xSet, ySet, 1000, 1.0)
+    #xSet = np.array([[[1,2,3], [1,3,5], [9, 9, 9]], [[1, 2, 3], [9, 9, 9]]])
+    #ySet = np.array([[[0.3, 0.5], [0.3,0.5], [0.3,0.5]], [[0.3, 0.5], [0.3,0.5]]])
+
+    data = readData('household_power_consumption.txt')
+    trainingData = data[0]
+    trainingDataX = [np.delete(trainingData[:100,:], 1, 1)]
+    xTrain = np.transpose(np.transpose(trainingDataX))
+    trainingDataY = trainingData[:100,1]
+    trainingDataY = [[[y] for y in trainingDataY]]
+    yTrain = np.transpose(np.transpose(trainingDataY))
+
+    xTest = np.delete(trainingData[100:200,:], 1, 1)
+    testDataY = trainingData[100:200,1]
+    testDataY = [[y] for y in testDataY]
+    yTest = np.transpose(np.transpose(testDataY))
+
+    originalData = data[3]
+    yForecast = [[y] for y in originalData[100:200,1]]
+    yForecast = np.transpose(np.transpose(yForecast))
+
+    lstm = LSTMCell(xTrain.shape[2], yTrain.shape[2])
+
+
+    lstm.train(xTrain, yTrain, 1000, 1.0)
+    max_ex = data[1]
+    min_ex = data[2]
+    predictions = lstm.forecast(xTest)
+    predictions = predictions * max_ex[1]
+    predictions = predictions + min_ex[1]
+    for i in range(predictions.shape[0]):
+        print(str(predictions[i][0]) + ' : ' + str(yForecast[i][0]))
+
      
 
 if __name__ == "__main__": main()
