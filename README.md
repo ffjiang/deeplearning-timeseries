@@ -16,6 +16,18 @@ http://www.cs.toronto.edu/~graves/preprint.pdf
 Basis for my implementation of the LSTM algorithm:
 http://arunmallya.github.io/writeups/nn/lstm/index.html#/
 
+...
+
+LSTM.py is our own implementation of an LSTM unit, and was superceded by the
+Keras implementation that we used, which can be found in LSTMNet.py
+
+Simply running "python LSTMNet.py" will train the model, forecast on a test 
+set and plot the forecasted values against the actual valuesl. To change
+the model between LSTM, RNN and MLP, uncomment the appropriate line between 159
+and 162, which chooses the model that is used.
+
+...
+
 DBN References:
 
 In order to run the DBN, simply include a filename with the data formatted, separated by semi-colons:
@@ -25,6 +37,7 @@ EX:
 0;1;2;3;2;3
 0;2;1;3;2;3
 ...
+
 
 To change predictions, run dbn.simulate_visible(data) in order to generate a prediction of hidden unit outcome from
 input data. Modify the number of input states, output states, and hidden layers/states in the hidden layer in the main function.
