@@ -1,5 +1,7 @@
 import numpy as np
 import math
+import random
+import pylab as pl
 
 def sigmoid(x):
     return 1 / (1 + np.exp(-x))
@@ -7,26 +9,13 @@ def sigmoid(x):
 class LSTMCell: 
 
     # Size is the dimensionality of the input vector
-    def __init__(self, size, numCells):
-        self.size = size
+    def __init__(self, inputSize, numCells):
+        self.inputSize = inputSize
         self.numCells = numCells
 
-        self.W_f = np.zeros((numCells, size)) # Forget gate matrix (for input)
-        self.W_i = np.zeros((numCells, size)) # Input gate matrix (for input)
-        self.W_c = np.zeros((numCells, size)) # Candidate value matrix (for input)
-        self.W_o = np.zeros((numCells, size)) # Output gate matrix (for input)
-
-        self.U_f = np.zeros((numCells, numCells)) # Forget gate matrix (for prev output)
-        self.U_i = np.zeros((numCells, numCells)) # Input gate matrix (for prev output)
-        self.U_c = np.zeros((numCells, numCells)) # Candidate value matrix (for prev output)
-        self.U_o = np.zeros((numCells, numCells)) # Output gate matrix (for prev output)
-
-        W_1 = np.concatenate((self.W_c, self.U_c), axis=1)
-        W_2 = np.concatenate((self.W_i, self.U_i), axis=1)
-        W_3 = np.concatenate((self.W_f, self.U_f), axis=1)
-        W_4 = np.concatenate((self.W_o, self.U_o), axis=1)
-
-        self.W = np.concatenate((W_1, W_2, W_3, W_4), axis=0)
+        # Randomly initialise the weight matrix
+        self.W = np.random.random((4 * numCells, inputSize + numCells)) * 2 \
+                        - np.ones((4 * numCells, inputSize + numCells))
 
         self.h = []
         self.C = []
@@ -99,9 +88,8 @@ class LSTMCell:
         self.z.append(np.zeros(numCells)) 
 
 
-        outputs = []
-        for i in range(len(x)):
-            outputs.append(self.forwardStep(x[i]))
+        outputs = [self.forwardStep(x_t) for x_t in x]
+
         return outputs
 
     def backwardStep(self, t, dE_dh_t, dE_dc_tplus1):
@@ -131,7 +119,7 @@ class LSTMCell:
         dE_dI_t = np.dot(np.transpose(self.W), dE_dz_t)
 
 
-        dE_dh_tminus1 = dE_dI_t[self.size:]
+        dE_dh_tminus1 = dE_dI_t[self.inputSize:]
 
         dE_dz_t.shape = (len(dE_dz_t), 1)
         self.I[t].shape = (len(self.I[t]), 1)
@@ -151,55 +139,88 @@ class LSTMCell:
         dE_dh_t = 0
         dE_dc_t = 0
         E = 0.0
+        discount = 1.0
         for i in range(numTimePeriods):
             index = numTimePeriods - i
-            E = E + 0.5 * np.sum(np.square(self.h[index] - y[index - 1])) # This is the error vector for this sequence
-            dE_dh_t = dE_dh_t + self.h[index] - y[index - 1] # This is the error gradient for this sequence
+            #E = E + 0.5 * np.sum(np.square(self.h[index] - y[index - 1])) # This is the error/loss vector for this sequence
+            E = E + discount * np.sum(np.absolute(self.h[index] - y[index - 1])) # This is the error/loss vector for this sequence
+            # The gradient is just 1 or -1, depending on whether h is
+            # less than or greater than y
+            lessThan = np.less(self.h[index], y[index - 1])
+            greaterThan = np.greater(self.h[index], y[index - 1])
+            dE_dh_t -= discount * lessThan
+            dE_dh_t += discount * greaterThan
+                
+            #dE_dh_t += self.h[index] - y[index - 1] # This is the error gradient for this sequence
 
             result = self.backwardStep(index, dE_dh_t, dE_dc_t)
             dE_dW = dE_dW + result[0] # dE_dW_t
             dE_dh_t = result[1]
             dE_dc_t = result[2]
 
+            discount *= 0.99
+
         return (E / (numTimePeriods), dE_dW)
 
-    def train(self, xSet, ySet, numEpochs, learningRate):
+
+    # should the actul data be used as the next input, or should its own input
+    # be used as the next input?
+    def train(self, trainingData, numEpochs, learningRate, sequenceLength):
         adaptiveLearningRate = learningRate
-        previousE = float("inf")
-        previousdE_dW = []
         for epoch in range(numEpochs):
-            for i in range(len(xSet)):
-                self.forwardPass(xSet[i])
-                result = self.BPTT(ySet[i])
+            trainingSequences = sequenceProducer(trainingData, sequenceLength)
+            epochError = 0.0
+            counter = 0
+            for sequence in trainingSequences:
+                counter += 1
+                self.forwardPass(sequence[:-1])
+                result = self.BPTT(sequence[1:,3:])
                 E = result[0]
                 dE_dW = result[1]
 
                 # Annealing
-                adaptiveLearningRate = learningRate / (1 + (epoch/100))
+                adaptiveLearningRate = learningRate / (1 + (epoch/10))
                 
                 self.W = self.W - adaptiveLearningRate * dE_dW
 
-                print("Error: " + str(E))
+                epochError += E
 
-                previousE = E
-                previousdE_dW = dE_dW
+            print('Epoch ' + str(epoch) + ' error: ' + str(epochError / counter))
 
-    def forecast(self, xSet):
-        self.forwardPass(xSet)
-        return np.transpose(np.transpose(self.h[1:]))
 
-    def test(self, xSet, ySet):
+    # needs a parameter about how far to forecast, and needs to use its own
+    # results as inputs to the next thing, to keep forecasting
+    def forecast(self, forecastingData):
+        self.forwardPass(forecastingData)
+        return np.transpose(np.transpose(self.h[-1]))
+
+    def forecastKSteps(self, forecastingData, timeData, k):
+        self.forwardPass(forecastingData)
+
+        for i in range(k - 1):
+            lastForecast = self.h[-1]
+            nextInput = np.concatenate(([1], timeData[i], self.h[-1]), axis=1)
+            self.forwardStep(nextInput)
+
+        return np.transpose(np.transpose(self.h[-k:]))
+
+
+
+    # needs fixing
+    def test(self, testingData, sequenceLength):
         avgError = 0.0
-        for i in range(xSet.shape[0]):
-            self.forwardPass(xSet[i])
-            numTimePeriods = len(xSet[i])
+        testingSequences = sequenceProducer(testingData, sequenceLength)
+        counter = 0
+        for sequence in testingSequences:
+            counter += 1
+            self.forwardPass(sequence[:-1])
             E = 0.0
-            for j in range(numTimePeriods):
-                index = numTimePeriods - j
-                E = E + 0.5 * np.sum(np.square(self.h[index] - ySet[i][index - 1])) # This is the error vector for this sequence
-            E = E / numTimePeriods
+            for j in range(sequenceLength - 1):
+                index = sequenceLength - j - 1
+                E = E + 0.5 * np.sum(np.square(self.h[index] - sequence[index, 3:])) # This is the error vector for this sequence
+            E = E / sequenceLength
             avgError = avgError + E
-        avgError = avgError / xSet.shape[0]
+        avgError = avgError / counter
 
         return avgError
 
@@ -216,9 +237,11 @@ def readData(filename):
     i = 0
     examples = []
     for line in lines:
-        if i < 3000 and '?' not in line:
+        if i < 10000 and '?' not in line:
 
             tokens = line.split(';')
+            date_str = tokens[0]
+            month = float(date_str.split('/')[1])
             time_str = tokens[1]
             hours = float(time_str[:2])
             minutes = float(time_str[3]) / 60.0
@@ -232,7 +255,7 @@ def readData(filename):
             sub_metering_2 = float(tokens[7])
             sub_metering_3 = float(tokens[8])
 
-            example = [time, global_active_power, global_reactive_power, voltage, global_intensity, sub_metering_1, sub_metering_2, sub_metering_3]
+            example = [month, time, global_active_power, global_reactive_power, voltage, global_intensity, sub_metering_1, sub_metering_2, sub_metering_3]
             examples.append(example)
             i += 1
 
@@ -255,41 +278,88 @@ class LSTMNetwork:
         self.layers = [[x for x in structure]] # this doesnt make sense
 '''
 
+def sequenceProducer(trainingData, sequenceLength):
+    indices = [i for i in range(0, trainingData.shape[0] - sequenceLength + 1, sequenceLength)]
+    random.shuffle(indices)
+    for index in indices:
+        yield trainingData[index:index + sequenceLength]
+
+def forecastSequenceProducer(trainingData, sequenceLength):
+    for i in range(trainingData.shape[0] - sequenceLength + 1):
+        yield trainingData[i:i + sequenceLength]
+
 def main():
 
+    sequenceLength = 100
     #xSet = np.array([[[1,2,3], [1,3,5], [9, 9, 9]], [[1, 2, 3], [9, 9, 9]]])
     #ySet = np.array([[[0.3, 0.5], [0.3,0.5], [0.3,0.5]], [[0.3, 0.5], [0.3,0.5]]])
 
     data = readData('household_power_consumption.txt')
-    trainingData = data[0]
-    trainingDataX = [np.delete(trainingData[:100,:], 1, 1)]
-    xTrain = np.transpose(np.transpose(trainingDataX))
-    trainingDataY = trainingData[:100,1]
-    trainingDataY = [[[y] for y in trainingDataY]]
-    yTrain = np.transpose(np.transpose(trainingDataY))
+    corpusData = data[0]
+    corpusData = np.concatenate((np.ones((corpusData.shape[0], 1)), corpusData), axis=1)
+    
+    lstm = LSTMCell(corpusData.shape[1], corpusData.shape[1] - 3)
+    trainingData = corpusData[:-1000]
+    lstm.train(trainingData, 30, 0.05, sequenceLength) # data, numEpochs, learningRate, sequenceLength
 
-    xTest = np.delete(trainingData[100:200,:], 1, 1)
-    testDataY = trainingData[100:200,1]
-    testDataY = [[y] for y in testDataY]
-    yTest = np.transpose(np.transpose(testDataY))
+    testingData = corpusData[-500:]
+    #print("Test error: " + str(lstm.test(testingData, sequenceLength)))
 
-    originalData = data[3]
-    yForecast = [[y] for y in originalData[100:200,1]]
-    yForecast = np.transpose(np.transpose(yForecast))
-
-    lstm = LSTMCell(xTrain.shape[2], yTrain.shape[2])
-
-
-    lstm.train(xTrain, yTrain, 1000, 1.0)
     max_ex = data[1]
     min_ex = data[2]
-    predictions = lstm.forecast(xTest)
-    predictions = predictions * max_ex[1]
-    predictions = predictions + min_ex[1]
-    for i in range(predictions.shape[0]):
-        print(str(predictions[i][0]) + ' : ' + str(yForecast[i][0]))
 
-     
+    originalData = data[3]
+    forecastData = corpusData[-500:]
+    forecastSequences = forecastSequenceProducer(forecastData, sequenceLength)
+    forecastError = 0.0
+    countForecasts = 0
+    labels = []
+
+    forecasts = []
+    for sequence in forecastSequences: 
+        countForecasts += 1
+        forecast = lstm.forecast(sequence[:-1])
+        forecast *= max_ex[2:]
+        forecast += min_ex[2:]
+        label = sequence[-1,3:] * max_ex[2:]
+        label += min_ex[2:]
+
+        forecasts.append(forecast)
+        labels.append(label)
+
+        print(str(forecast))
+        print(str(label))
+        print('Error: ' + str(np.absolute(forecast - label)))
+        print('----------------')
+        forecastError += np.absolute(forecast - label)
+
+
+    print ('Average forecast error: ' + str(forecastError / countForecasts))
+    
+    forecasts = np.array(forecasts)
+    labels = np.array(labels)
+    times = [i for i in range(forecasts.shape[0])]
+    pl.plot(times, forecasts[:,0], 'r')
+    pl.plot(times, labels[:,0], 'b')
+    pl.show()
+
+
+    '''
+    forecasts = lstm.forecastKSteps(forecastData[:500], forecastData[500:,1:3], 500)
+    print(forecasts)
+    forecasts *= max_ex[2:]
+    forecasts += max_ex[2:]
+    labels = forecastData[:,3:]
+    labels *= max_ex[2:]
+    labels += min_ex[2:]
+
+
+    times = [i for i in range(labels.shape[0])]
+    pl.plot(times, np.concatenate((np.ones(500),forecasts[:,0])), 'r')
+    pl.plot(times, labels[:,0], 'b')
+    pl.show()
+    #print('Error: ' + str(lstm.test(xTest, yTest) * max_ex[1] + min_ex[1]))
+    '''
 
 if __name__ == "__main__": main()
 
