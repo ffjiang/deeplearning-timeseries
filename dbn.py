@@ -112,27 +112,31 @@ class DBN:
             rbm_layer = self.rbm_layers[i]
             rbm_layer.train(curr_input, self.max_epochs)
 
-            curr_input = rbm_layer.run_visible(curr_input)
+            val = rbm_layer.run_visible(np.array(curr_input))
+            curr_input = val[0]
 
 
     def simulate_visible(self, data):
 
         curr_input = data
+        hidden_probs = []
 
         for i in range(0, len(self.rbm_layers)):
 
             rbm_layer = self.rbm_layers[i]
-            curr_input = rbm_layer.run_visible(curr_input)
+            val = rbm_layer.run_visible(np.array(curr_input))
+            curr_input = val[0]
+            hidden_probs = val[1]
 
-        return curr_input
+
+        return hidden_probs
 
     def simulate_hidden(self, data):
         curr_input = data
-
         for i in range(len(self.rbm_layers) - 1, -1, -1):
 
             rbm_layer = self.rbm_layers[i]
-            curr_input = rbm_layer.run_hidden(curr_input)
+            curr_input = rbm_layer.run_visible(np.array(curr_input))
 
         return curr_input
 if __name__ == '__main__':

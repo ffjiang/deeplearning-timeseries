@@ -18,6 +18,22 @@ http://arunmallya.github.io/writeups/nn/lstm/index.html#/
 
 DBN References:
 
+In order to run the DBN, simply include a filename with the data formatted, separated by semi-colons:
+
+EX:
+
+0;1;2;3;2;3
+0;2;1;3;2;3
+...
+
+To change predictions, run dbn.simulate_visible(data) in order to generate a prediction of hidden unit outcome from
+input data. Modify the number of input states, output states, and hidden layers/states in the hidden layer in the main function.
+For a DBN with 3 input nodes, two layers with 3 nodes each, and 2 output nodes, the following configuration would be:
+
+input: 3
+hidden: [3,3]
+output: 3
+
 Introduction to RBM: http://blog.echen.me/2011/07/18/introduction-to-restricted-boltzmann-machines/
 
 Introduction to DBN:

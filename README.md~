@@ -15,3 +15,17 @@ http://www.cs.toronto.edu/~graves/preprint.pdf
 
 Basis for my implementation of the LSTM algorithm:
 http://arunmallya.github.io/writeups/nn/lstm/index.html#/
+
+DBN References:
+
+Introduction to RBM: http://blog.echen.me/2011/07/18/introduction-to-restricted-boltzmann-machines/
+
+Introduction to DBN:
+http://www.math.kth.se/matstat/seminarier/reports/M-exjobb15/150612a.pdf
+
+Pretty intuitive description of DBN/Uses nolearn package:
+http://www.pyimagesearch.com/2014/09/22/getting-started-deep-learning-python/
+
+Potential implementations of DBNs/RBMs:
+http://deeplearning.net/tutorial/DBN.html
+https://github.com/dnouri/nolearn/tree/master/nolearn

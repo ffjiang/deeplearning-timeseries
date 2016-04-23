@@ -90,7 +90,7 @@ class RBM:
   
     # Ignore the bias units.
     hidden_states = hidden_states[:,1:]
-    return hidden_states
+    return [hidden_states, hidden_probs]
     
   # TODO: Remove the code duplication between this method and `run_visible`?
   def run_hidden(self, data):
